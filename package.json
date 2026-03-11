@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "prebuild": "node generate-md.mjs && ls generated-api",
+    "generate-md": "node generate-md.mjs",
     "build": "doc-kit generate -t web -i generated-api/webpack/namespaces/*.md -o out"
   },
   "devDependencies": {
