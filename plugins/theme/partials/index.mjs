@@ -14,6 +14,17 @@ const STATIC_PREFIX = {
   [ReflectionKind.Method]: "Static method",
 };
 
+const formatParams = (params = []) =>
+  params
+    .map((param, index) => {
+      if (param.flags?.isOptional) {
+        return index === 0 ? `[${param.name}]` : `[, ${param.name}]`;
+      }
+
+      return index === 0 ? param.name : `, ${param.name}`;
+    })
+    .join("");
+
 export const getMemberPrefix = (model) => {
   const prefix = model.flags?.isStatic
     ? STATIC_PREFIX[model.kind]
@@ -65,6 +76,11 @@ export default (ctx) => ({
   },
 
   memberTitle(model) {
+    if (model.kind === ReflectionKind.Constructor) {
+      const params = model.signatures?.[0]?.parameters ?? [];
+      return `\`new ${model.parent.name}(${formatParams(params)})\``;
+    }
+
     const prefix = getMemberPrefix(model);
     const params = model.signatures?.[0]?.parameters;
 
@@ -72,18 +88,7 @@ export default (ctx) => ({
       return `${prefix}\`${model.name}\``;
     }
 
-    const paramsString = params
-      .map((param, index) => {
-        const paramName = param.name;
-        if (param.flags?.isOptional) {
-          // For optional params, wrap comma + name in brackets (except for first param)
-          return index === 0 ? `[${paramName}]` : `[, ${paramName}]`;
-        } else {
-          // For required params, add comma separator (except for first param)
-          return index === 0 ? paramName : `, ${paramName}`;
-        }
-      })
-      .join("");
+    const paramsString = formatParams(params);
 
     return `${prefix}\`${model.name}(${paramsString})\``;
   },
@@ -91,15 +96,7 @@ export default (ctx) => ({
   constructor(model, options) {
     const md = [];
     model.signatures?.forEach((signature) => {
-      const params = signature.parameters ?? [];
-      const paramsString = params
-        .map((param, index) => {
-          if (param.flags?.isOptional) {
-            return index === 0 ? `[${param.name}]` : `[, ${param.name}]`;
-          }
-          return index === 0 ? param.name : `, ${param.name}`;
-        })
-        .join("");
+      const paramsString = formatParams(signature.parameters ?? []);
 
       const heading = "#".repeat(options.headingLevel);
       md.push(`${heading} \`new ${model.parent.name}(${paramsString})\``);
