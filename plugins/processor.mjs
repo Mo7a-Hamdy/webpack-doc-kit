@@ -2,6 +2,15 @@ import { Converter, ReflectionKind, Renderer } from 'typedoc';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const OFFICIAL_WEBPACK_API_OVERRIDES = {
+  Compiler: 'https://webpack.js.org/api/compiler',
+  Compilation: 'https://webpack.js.org/api/compilation',
+  NormalModule: 'https://webpack.js.org/api/modules/#normalmodule',
+  LoaderContext: 'https://webpack.js.org/api/loaders/#the-loader-context',
+  Stats: 'https://webpack.js.org/api/stats',
+  Configuration: 'https://webpack.js.org/api/configuration',
+};
+
 /**
  * @param {import('typedoc-plugin-markdown').MarkdownApplication} app
  */
@@ -36,7 +45,7 @@ export function load(app) {
   });
 
   app.renderer.on(Renderer.EVENT_END, () => {
-    const typeMap = Object.fromEntries(
+    const generatedTypeMap = Object.fromEntries(
       app.renderer.router
         .getLinkTargets()
         .map(target => [
@@ -44,6 +53,10 @@ export function load(app) {
           app.renderer.router.getAnchoredURL(target),
         ])
     );
+    const typeMap = {
+      ...generatedTypeMap,
+      ...OFFICIAL_WEBPACK_API_OVERRIDES,
+    };
 
     writeFileSync(
       join(app.options.getValue('out'), 'type-map.json'),
