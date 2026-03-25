@@ -2,15 +2,6 @@ import { Converter, ReflectionKind, Renderer } from 'typedoc';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const OFFICIAL_WEBPACK_API_OVERRIDES = {
-  Compiler: 'https://webpack.js.org/api/compiler',
-  Compilation: 'https://webpack.js.org/api/compilation',
-  NormalModule: 'https://webpack.js.org/api/modules/#normalmodule',
-  LoaderContext: 'https://webpack.js.org/api/loaders/#the-loader-context',
-  Stats: 'https://webpack.js.org/api/stats',
-  Configuration: 'https://webpack.js.org/api/configuration',
-};
-
 /**
  * @param {import('typedoc-plugin-markdown').MarkdownApplication} app
  */
@@ -44,19 +35,43 @@ export function load(app) {
       );
   });
 
-  app.renderer.on(Renderer.EVENT_END, () => {
-    const generatedTypeMap = Object.fromEntries(
-      app.renderer.router
-        .getLinkTargets()
-        .map(target => [
-          target.getFullName(),
-          app.renderer.router.getAnchoredURL(target),
-        ])
-    );
-    const typeMap = {
-      ...generatedTypeMap,
-      ...OFFICIAL_WEBPACK_API_OVERRIDES,
-    };
+  app.renderer.on(Renderer.EVENT_END, event => {
+    const router = app.renderer.router;
+    const reflections = event.project
+      .getReflectionsByKind(ReflectionKind.All)
+      .filter(ref => {
+        if (ref.name === 'export=' || ref.name === '__type') {
+          return false;
+        }
+        if (ref.kind === ReflectionKind.Reference) {
+          return false;
+        }
+        if (ref.isProject()) {
+          return false;
+        }
+        return router.hasUrl(ref);
+      });
+
+    /** @type {Record<string, string>} */
+    const typeMap = {};
+    const shortNameKindMask =
+      ReflectionKind.Class |
+      ReflectionKind.Interface |
+      ReflectionKind.TypeAlias |
+      ReflectionKind.Enum;
+
+    for (const ref of reflections) {
+      const url = router.getAnchoredURL(ref).replace('export=/', '');
+      const fullName = ref.getFullName();
+
+      typeMap[fullName] = url;
+
+      // Add short aliases for common type-like reflections to improve lookup
+      // when markdown text references unqualified names like `Compiler`.
+      if (ref.kindOf(shortNameKindMask) && !typeMap[ref.name]) {
+        typeMap[ref.name] = url;
+      }
+    }
 
     writeFileSync(
       join(app.options.getValue('out'), 'type-map.json'),
